@@ -1,2 +1,6 @@
 .vscode
-/data
+data/*
+
+/scripts/old_merge_prob/
+/scripts/old_merge/
+
