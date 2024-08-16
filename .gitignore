@@ -1,5 +1,6 @@
 .vscode
 data/*
+!data/.gitkeep
 
 /scripts/old_merge_prob/
 /scripts/old_merge/
