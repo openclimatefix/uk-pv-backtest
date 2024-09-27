@@ -1,7 +1,6 @@
 .vscode
 data/*
 !data/.gitkeep
-
-/scripts/old_merge_prob/
-/scripts/old_merge/
-
+!data/compare_forecasts/
+data/compare_forecasts/*
+!data/compare_forecasts/.gitkeep
