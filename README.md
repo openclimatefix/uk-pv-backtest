@@ -3,6 +3,9 @@
 [![ease of contribution: medium](https://img.shields.io/badge/ease%20of%20contribution:%20medium-f4900c)](https://github.com/openclimatefix/ocf-meta-repo?tab=readme-ov-file#overview-of-ocfs-nowcasting-repositories)
 
 
+[![contributors badge](https://img.shields.io/github/contributors/openclimatefix/uk-pv-backtest?color=FFFFFF)](    https://github.com/openclimatefix/uk-pv-backtest/graphs/contributors) 
+[![ease of contribution: medium](https://img.shields.io/badge/ease%20of%20contribution:%20medium-f4900c)](https://github.com/openclimatefix/ocf-meta-repo?tab=readme-ov-file#overview-of-ocfs-nowcasting-repositories)
+
 # Backtest Formatting
 
 This repo contains scripts and notebooks for formatting and verifying the backtest data produced by national solar forecasting models from Open Climate Fix.
@@ -85,6 +88,19 @@ It is best to upload the raw backtest data to a Google storage as you will likel
 Don't forget to use `-m` to significantly speed up the transfer.
 
 Data can then be downloaded onto another machine for processing.
+
+## Contributing and community
+
+- PR's are welcome! See the [Organisation Profile](https://github.com/openclimatefix) for details on contributing
+- Find out about our other projects in the [OCF Meta Repo](https://github.com/openclimatefix/ocf-meta-repo)
+- Check out the [OCF blog](https://openclimatefix.org/blog) for updates
+- Follow OCF on [LinkedIn](https://uk.linkedin.com/company/open-climate-fix)
+
+---
+
+*Part of the [Open Climate Fix](https://github.com/orgs/openclimatefix/people) community.*
+
+[![OCF Logo](https://cdn.prod.website-files.com/62d92550f6774db58d441cca/6324a2038936ecda71599a8b_OCF_Logo_black_trans.png)](https://openclimatefix.org)
 
 ## Contributing and community
 
