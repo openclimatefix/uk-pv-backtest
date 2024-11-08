@@ -10,33 +10,48 @@
 
 This repo contains scripts and notebooks for formatting and verifying the backtest data produced by national solar forecasting models from Open Climate Fix.
 
-## How to run backtests in the first place!
+## Running PVNet backtests
 
-National backtests can be run using our latest PVNet model and NationalXG model. In the PVNet repo, under scripts, there is a python file called `gsp_run_backtest.py`. This script can be used to run the backtests by setting the models and the dates you to use. For PVNet there is a model to run the GSP level forecast and another model, called the summation model, which is used to aggregate the GSP level forecasts to a national level. Each of these model checkpoints should be downloaded locally before running the backtest.
+###  Setting up the model and data configuration
 
-Additionally, specific configuration will also be required dependent on what inputs the trained model expects. The data_config.yml file is used to store the location of the data to use as well as the settings for data input parameters such as the lag for each of the inputs and the amount of history provided.
+National solar forecasting backtests can be run using OCFs PVNet and NationalXG models. In the [PVNet repo](https://github.com/openclimatefix/PVNet), under scripts, there is the file `gsp_run_backtest.py`. This script can be used to run the backtests by setting the models and the dates ranges to use. 
+
+For PVNet there is one model to run the GSP level forecasts and another model, called the summation model, which is used to aggregate the GSP level forecasts to a national level. Each of these models checkpoints can be downloaded locally before running the backtest or can be streamed in from Hugging Face.
+
+The model requires a specific configuration file called `data_config.yml`. This file defines:
+- The location of input data
+- Input parameters like time lags 
+- How much historical data to include
+- Other model-specific data settings
+
+**The configuration file must exactly match the settings used during model training for the backtest to run correctly.**
+
+### Executing the Backtest Process
 
 As backtests can take a long time to run, it is best to used a environment like `tmux` to run the backtests. This allows you to keep the job running even if the SSH connection is lost.
 
-After installing tmux you can create a new session with `tmux new -s [SESSION_NAME]`.
+After installing `tmux` you can create a new session with:
+`tmux new -s [SESSION_NAME]`
 
-Then activate, the appropriate environment to run the backtest. Once you have created a tmux session you can run the backtest with `python run_backtest.py`.
+Then activate the appropriate conda environment to run the backtest. Once you have created and are inside a `tmux` session you can run the backtest with:
+`python run_backtest.py`
 
-The progress of the backtest can be checked again used `tmux attach -n [SESSION_NAME]`
+The progress of the backtest can be viewed by reconnecting to the `tmux` session with:
+`tmux attach -n [SESSION_NAME]`
 
-It can be useful to inspect how much of the machines resources are being used via `top` or `htop`. This shows the memory usage of the CPU and RAM, which is useful when optimising the number of workers and batches.
+It can be useful to inspect how much of the machines resources are being used via `top` or `htop`. This shows the CPU and RAM usage, which is useful when optimising the number of workers and batches.
 
 
 ### Additional notes for running backtests.
 
-- For PVNet, two sets of models are belended together to produce the final forecast. The first is for the Intraday forecasts (0-8 hours), and the second is for the Day Ahead forecast (0-36 hours). The number of workers, batches and overall configuration will be different for each of these. The day ahead forecasts will take the most time to run, due to the length of the forecasts.
-- If an error appears such as `terminate called without an active exception`, this is likely due to memory issues. This can fix this by reducing the number of workers and batches or by increasing the machines resources.
-- It is useful to run small test backtests and compare the forecast accuracy to previous forecasts using the `compare_forecast_error.ipynb` notebook. Previous backtest data can be found on the google storage bucket under `solar-pv-nowcasting-data/backtest/`. This helps to validate things are as expected before kicking off a larger backtest.
+- For PVNet backtests, two sets of models are blended together to produce the final forecast. The first is for **Intraday forecasts (0-8 hours)**, and the second is for **Day Ahead forecasts (0-36 hours)**. The number of workers, batches and overall configuration will be different for each model.
+- If an error appears such as `terminate called without an active exception`, this is likely due to memory issues. This can be fixed by reducing the number of workers or batches or by increasing the machines resources.
+- It is useful to run small experimental backtests and compare the forecast accuracy to previous forecasts using the `compare_forecast_mae.ipynb` notebook. Previous backtest data can be found in the google storage bucket under `solar-pv-nowcasting-data/backtest/`. This helps to validate things are as expected before kicking off a larger backtest.
 
 
 ## Formatting of Forecasts produced by PVNet
 
-For PVNet, the processing and formatting scripts are found in `/scripts/pvnet_prob/` and consists of the 4 steps below:
+For PVNet, processing and formatting scripts are found in `/scripts/pvnet_prob/` and consists of the 4 steps below:
 
 1. Compile the raw PVNet files to a zarr file (`compile_raw_files.py`)
 2. Filter the data for GSP 0 (National) and the quantiles to output as a single csv (`filter_zarr_to_csv.py`)
@@ -45,47 +60,47 @@ For PVNet, the processing and formatting scripts are found in `/scripts/pvnet_pr
 
 
 ### Compiling Raw PVNet Files
-PVNet produces a single netcdf file (.nc) per initialisation time. These files need to be combined together. The script to do this is called `compile_raw_files.py`. This will produce a zarr file containing all the data.
+PVNet produces a single netcdf file (.nc) per initialisation time. These files need to be combined together. The script to do this is called `compile_raw_files.py`. This will produce a zarr file containing the data.
 
 The `filter_zarr_to_csv.py` script turns the data from a zarr into a csv, keeping just the national forecast rather than the GSP level forecasts. This needs to be performed for the Intraday and Dayahead forecasts separately.
 
-Once the files are in the correct format, the `merge_and_blend_prob.py` script can be used. This merges the two datasets together and blends the forecasts together based on defined weightings in the script.
+Once the files are in the correct format, the `merge_and_blend_prob.py` script can be used. This merges the two datasets together and blends the forecasts together based on defined weightings at different forecast horizons in the script.
 
-The file then runs through a last formatting script called, `format_forecast.py`. This script adds the PVLive installed capacity and outputs the final forecast file.
+The data then needs to run through a last formatting script called, `format_forecast.py`. This script adds the PVLive installed capacity and outputs the final forecast file.
 
 
 #### Additional notes on compiling forecasts
 
 - Legacy archive scripts from previous projects have been included in this repo and can be found in `/scripts/archived_scripts/` folder.
-- Previously the combination of the day ahead forecasts from NationalXG and intraday forecasts from PVNet were blended together. Now only PVNet is used however, previous use of NationalXG has determined some of the formatting choices made in the code.
-- The formatting functions have been kept modular to allow for ease if new models with different formats are to be used and data to be checked along the way.
+- Previously the combination of the day ahead forecasts from NationalXG and Intraday forecasts from PVNet were blended together. Now only PVNet is used however, previous use of NationalXG has determined some of the formatting choices made in the code.
+- The formatting functions have been kept modular.
 
 
-### National XG formatting
+#### National XG formatting
 
-Previously scripts have been written for interpolating hourly forecasts to half hourly `interpolate_30min.py`. And also for unnormalising forecasts using the installed capacity for PVLive `unnorm_forecast.py`.
+Scripts have been written for interpolating hourly forecasts to half hourly `interpolate_30min.py` and for unnormalising forecasts using the installed capacity for PVLive `unnorm_forecast.py`.
 
 ## Post Formatting
 
-Notebooks for checking the data and comparing the forecasts are found in `/notebooks/`
+Notebooks for verifying the data and comparing forecasts is found in `/notebooks/`
 - `check_blending.ipynb` can be used to verify the blending of the forecasts.
-- `check_forecast_consistency.ipynb` can be used to validate various aspects of the forecast data.
-- `compare_forecast_error.ipynb` can be used to compare the error of the forecasts to previous forecasts/different models. Previous forecasts can be moved to the `/data/compare_forecasts` folder to use this notebook.
+- `check_forecast_consistency.ipynb` can be used to check data quality.
+- `compare_forecast_mae.ipynb` can be used to compare the error of the forecasts to previous forecasts and models. Previous forecasts can be moved to the `/data/compare_forecasts` folder to use this notebook.
 
 ### Additional scripts
 
-Check for missing data using the `missing_data.py` file. This script checks the data for gaps in the forecasts and outputs a csv detailing the size and start of the gaps.
+Check for missing data in the backtest using the `missing_data.py` file. This script checks the data for gaps in the forecasts and outputs a csv detailing the size and start of the gaps.
 
-To name the file in the standardised format, use the `rename_forecast_file.py` script. For model version numbers, the pvnet_app version number is used.
+To name the file in the standardised format, use the `rename_forecast_file.py` script. For model version numbers, the [pvnet_app](https://github.com/openclimatefix/uk-pvnet-app) version number is used.
 
 
 ## Uploading Data to Google Storage
 
-It is best to upload the raw backtest data to a Google storage as you will likely be able to process data much faster due to high bandwidth. You can do this using `gsutil`
+After running a backtest, the raw data can be uploaded to Google Storage. The `gsutil` command line tool can be used:
 
 `gsutil -m cp -r [LOCAL_FILE_PATH] gs://[BUCKET_NAME]/[OBJECT_NAME]`
 
-Don't forget to use `-m` to significantly speed up the transfer.
+The `-m` flag enables parallel multi-threading, allowing multiple files to be transferred simultaneously which significantly speeds up the transfer.
 
 Data can then be downloaded onto another machine for processing.
 
@@ -101,6 +116,7 @@ Data can then be downloaded onto another machine for processing.
 *Part of the [Open Climate Fix](https://github.com/orgs/openclimatefix/people) community.*
 
 [![OCF Logo](https://cdn.prod.website-files.com/62d92550f6774db58d441cca/6324a2038936ecda71599a8b_OCF_Logo_black_trans.png)](https://openclimatefix.org)
+Data can then be downloaded onto another machine for distribution.
 
 ## Contributing and community
 
