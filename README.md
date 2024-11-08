@@ -1,4 +1,11 @@
 
+
+[![contributors badge](https://img.shields.io/github/contributors/openclimatefix/uk-pv-backtest?color=FFFFFF)](    https://github.com/openclimatefix/uk-pv-backtest/graphs/contributors) 
+[![ease of contribution: medium](https://img.shields.io/badge/ease%20of%20contribution:%20medium-f4900c)](https://github.com/openclimatefix/ocf-meta-repo?tab=readme-ov-file#overview-of-ocfs-nowcasting-repositories)
+
+
+# Backtest Formatting
+
 [![contributors badge](https://img.shields.io/github/contributors/openclimatefix/uk-pv-backtest?color=FFFFFF)](    https://github.com/openclimatefix/uk-pv-backtest/graphs/contributors) 
 [![ease of contribution: medium](https://img.shields.io/badge/ease%20of%20contribution:%20medium-f4900c)](https://github.com/openclimatefix/ocf-meta-repo?tab=readme-ov-file#overview-of-ocfs-nowcasting-repositories)
 
@@ -100,6 +107,20 @@ After running a backtest, the raw data can be uploaded to Google Storage. The `g
 The `-m` flag enables parallel multi-threading, allowing multiple files to be transferred simultaneously which significantly speeds up the transfer.
 
 Data can then be downloaded onto another machine for distribution.
+
+## Contributing and community
+
+- PR's are welcome! See the [Organisation Profile](https://github.com/openclimatefix) for details on contributing
+- Find out about our other projects in the [OCF Meta Repo](https://github.com/openclimatefix/ocf-meta-repo)
+- Check out the [OCF blog](https://openclimatefix.org/blog) for updates
+- Follow OCF on [LinkedIn](https://uk.linkedin.com/company/open-climate-fix)
+
+---
+
+*Part of the [Open Climate Fix](https://github.com/orgs/openclimatefix/people) community.*
+
+
+Data can then be downloaded onto another machine for processing.
 
 ## Contributing and community
 
