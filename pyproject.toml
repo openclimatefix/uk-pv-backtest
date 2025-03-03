@@ -1,3 +1,25 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uk-pv-backtest"
+version = "0.1.0"
+description = "UK PV backtest tools"
+requires-python = ">=3.8"
+dependencies = [
+    "pandas",
+    "numpy",
+    "xarray",
+    "pvlive_api",
+    "pytz",
+    "google-cloud-storage",
+    "tqdm",
+]
+
+[tool.setuptools]
+py-modules = []  # Empty list means no Python modules to install
+
 [tool.ruff]
 line-length = 120
 lint.select = ["E", "F", "D", "I"]
