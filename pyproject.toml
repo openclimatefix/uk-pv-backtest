@@ -1,5 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uk-pv-backtest"
+version = "0.1.0"
+description = "UK PV backtest tools"
+requires-python = ">=3.8"
+dependencies = [
+    "pandas",
+    "numpy",
+    "xarray",
+    "pvlive-api>=0.4.1",
+    "pytz",
+    "google-cloud-storage>=2.0",
+    "tqdm",
+    "zarr",
+    "pyarrow",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+]
+
+[tool.setuptools]
+packages = ["scripts"]
+py_modules = []
+
 [tool.ruff]
 line-length = 120
 lint.select = ["E", "F", "D", "I"]
 lint.ignore = ["D10", "D203", "D205", "D212", "D213", "D400", "D404", "D413", "D415", "D417"]
-lint.extend-ignore = ["E501", "E302", "E303", "E305", "E306", "E231", "E203", "E202", "E201"]
+lint.extend-ignore = ["E501"]
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
