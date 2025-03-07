@@ -26,7 +26,6 @@ dev = [
 
 [tool.setuptools]
 packages = ["scripts"]
-py_modules = []
 
 [tool.ruff]
 line-length = 120
