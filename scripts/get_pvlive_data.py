@@ -86,7 +86,7 @@ def get_national_pvlive_data():
         "installedcapacity_mwp",
     ]]
 
-    local_path = os.path.join(TEMP_DIR, "pvlive_national_pandas.csv")
+    local_path = os.path.join(TEMP_DIR, "pvlive_national.csv")
     data.to_csv(local_path, index=False)
     logging.info(f"National PVLive data saved to {local_path}")
     upload_national_data(local_path, GCS_BUCKET, GCS_NATIONAL_PATH)
@@ -96,7 +96,7 @@ def get_national_pvlive_data():
 def get_gsp_pvlive_data():
     """Retrieves and formats GSP PV generation data using the PVLive API."""
     logging.info("Fetching GSP PVLive data...")
-    local_zarr_path = os.path.join(TEMP_DIR, "pvlive_gsp_pandas.zarr")
+    local_zarr_path = os.path.join(TEMP_DIR, "pvlive_gsp.zarr")
 
     target_times = pd.date_range(datetime(2016, 12, 1), datetime(2025, 1, 1), freq="30T")
     gsp_ids = np.arange(0, 318)
