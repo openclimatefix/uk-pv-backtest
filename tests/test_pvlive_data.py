@@ -60,7 +60,7 @@ def test_upload_national_data(tmp_path):
         mock_blob.upload_from_filename.assert_called_once_with(test_csv)
 
 
-@mock.patch('get_pvlive_data.upload_zarr_to_gcs')
+@mock.patch('scripts.get_pvlive_data.upload_zarr_to_gcs')
 @mock.patch('pvlive_api.PVLive')
 def test_get_gsp_pvlive_data(mock_pvlive_class, mock_upload_zarr):
     """Test the GSP data retrieval and processing."""
@@ -86,7 +86,7 @@ def test_get_gsp_pvlive_data(mock_pvlive_class, mock_upload_zarr):
 
             with mock.patch('pandas.date_range', return_value=test_times):
                 with mock.patch('shutil.rmtree'):
-                    with mock.patch('get_pvlive_data.TEMP_DIR', temp_dir):
+                    with mock.patch('scripts.get_pvlive_data.TEMP_DIR', temp_dir):
                         get_gsp_pvlive_data()
 
         mock_upload_zarr.assert_called_once()
