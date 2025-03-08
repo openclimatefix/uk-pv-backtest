@@ -11,7 +11,7 @@ import pytest
 import xarray as xr
 from pvlive_api import PVLive
 
-from get_pvlive_data import (
+from scripts.get_pvlive_data import (
     GCS_BUCKET,
     GCS_NATIONAL_PATH,
     GCS_PATH,
