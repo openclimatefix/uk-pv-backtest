@@ -1,4 +1,7 @@
-"""Analyses / checks .zarr dataset"""
+"""Analyses PV generation data from a Zarr dataset.
+
+Loads data, performs analyses, and prints a summary.
+"""
 
 import argparse
 import logging
@@ -6,7 +9,7 @@ import os
 import shutil
 import sys
 import tempfile
-from datetime import datetime
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -17,8 +20,17 @@ from google.cloud import storage
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def download_zarr_from_gcs(bucket_name, gcs_path, local_path):
-    """Downloads a Zarr dataset (directory) from GCS."""
+def download_zarr_from_gcs(bucket_name: str, gcs_path: str, local_path: str) -> bool:
+    """Downloads a Zarr dataset (directory) from GCS.
+    
+    Args:
+        bucket_name: GCS bucket name.
+        gcs_path: Path within the bucket.
+        local_path: Local path to save the data.
+        
+    Returns:
+        True if successful, False otherwise.
+    """
     logging.info(f"Downloading zarr from gs://{bucket_name}/{gcs_path} to {local_path}...")
     
     storage_client = storage.Client()
@@ -41,8 +53,15 @@ def download_zarr_from_gcs(bucket_name, gcs_path, local_path):
     return True
 
 
-def load_data(zarr_path):
-    """Load the GSP data from a zarr file or GCS path."""
+def load_data(zarr_path: str) -> Optional[xr.Dataset]:
+    """Load the GSP data from a zarr file or GCS path.
+    
+    Args:
+        zarr_path: Path to the Zarr dataset (local or GCS).
+        
+    Returns:
+        An xarray Dataset, or None if loading fails.
+    """
     logging.info(f"Loading data from {zarr_path}...")
     
     if zarr_path.startswith("gs://"):
@@ -58,20 +77,20 @@ def load_data(zarr_path):
             if not success:
                 logging.error(f"Failed to download zarr dataset from {zarr_path}")
                 shutil.rmtree(temp_dir)
-                sys.exit(1)
+                return None
             ds = xr.open_zarr(local_zarr_path)
             
         except Exception as e:
             logging.error(f"Error loading zarr dataset: {e}")
             shutil.rmtree(temp_dir)
-            sys.exit(1)
+            return None
             
     else:
         try:
             ds = xr.open_zarr(zarr_path)
         except Exception as e:
             logging.error(f"Error loading zarr dataset: {e}")
-            sys.exit(1)
+            return None
     
     logging.info(f"Loaded zarr dataset with dimensions: {dict(ds.dims)}")
     logging.info(f"Variables: {list(ds.data_vars)}")
@@ -81,25 +100,43 @@ def load_data(zarr_path):
     return ds
 
 
-def print_separator():
-    """Print a separator line."""
-    logging.info("\n" + "="*80 + "\n")
-
-
-def basic_stats(ds):
-    """Calculate and print basic statistics."""
-    print_separator()
-    logging.info("BASIC STATISTICS")
-    print_separator()
+def analyse_data(ds: xr.Dataset) -> None:
+    """Analyses data and prints key findings.
     
-    logging.info(f"Dataset Summary:")
-    logging.info(f"Time period: {ds.datetime_gmt.values.min()} to {ds.datetime_gmt.values.max()}")
-    logging.info(f"Total timesteps: {len(ds.datetime_gmt)}")
-    logging.info(f"Total GSPs: {len(ds.gsp_id)}")
-    logging.info(f"Total data points: {len(ds.datetime_gmt) * len(ds.gsp_id):,}")
+    Args:
+        ds: The xarray Dataset containing the PV data.
+        
+    Returns:
+        None (prints the analysis results).
+    """
+    if ds is None:
+        logging.error("Dataset is empty. Exiting.")
+        return
+
+    logging.info("=== PV Data Analysis ===")
+    logging.info(f"Data from {ds.datetime_gmt.values.min()} to {ds.datetime_gmt.values.max()}")
+    logging.info(f"Total Data Points: {len(ds.datetime_gmt) * len(ds.gsp_id):,}")
     
-    years = np.unique([pd.Timestamp(dt).year for dt in ds.datetime_gmt.values])
-    logging.info(f"Years covered: {', '.join(map(str, sorted(years)))}")
+    logging.info("")
+    logging.info("--- Basic Stats ---")
+    gen_mean = float(np.nanmean(ds.generation_mw.values))
+    gen_max = float(np.nanmax(ds.generation_mw.values))
+    cap_mean = float(np.nanmean(ds.capacity_mwp.values))
+    cap_max = float(np.nanmax(ds.capacity_mwp.values))
+    installed_mean = float(np.nanmean(ds.installedcapacity_mwp.values))
+    installed_max = float(np.nanmax(ds.installedcapacity_mwp.values))
+    
+    logging.info("Generation (MW):")
+    logging.info(f"  Mean: {gen_mean:.2f}")
+    logging.info(f"  Max: {gen_max:.2f}")
+    
+    logging.info("Capacity (MWp):")
+    logging.info(f"  Mean: {cap_mean:.2f}")
+    logging.info(f"  Max: {cap_max:.2f}")
+    
+    logging.info("Installed Capacity (MWp):")
+    logging.info(f"  Mean: {installed_mean:.2f}")
+    logging.info(f"  Max: {installed_max:.2f}")
     
     missing_gen = np.isnan(ds.generation_mw.values).sum()
     missing_cap = np.isnan(ds.capacity_mwp.values).sum()
@@ -107,104 +144,52 @@ def basic_stats(ds):
     
     total_points = len(ds.datetime_gmt) * len(ds.gsp_id)
     
-    logging.info("\nMissing Values:")
+    logging.info("")
+    logging.info("Missing Values:")
     logging.info(f"  generation_mw: {missing_gen:,} ({missing_gen/total_points*100:.2f}%)")
     logging.info(f"  capacity_mwp: {missing_cap:,} ({missing_cap/total_points*100:.2f}%)")
     logging.info(f"  installedcapacity_mwp: {missing_installed:,} ({missing_installed/total_points*100:.2f}%)")
     
-
-    gen_mean = np.nanmean(ds.generation_mw.values)
-    gen_max = np.nanmax(ds.generation_mw.values)
-    cap_mean = np.nanmean(ds.capacity_mwp.values)
-    cap_max = np.nanmax(ds.capacity_mwp.values)
-    installed_mean = np.nanmean(ds.installedcapacity_mwp.values)
-    installed_max = np.nanmax(ds.installedcapacity_mwp.values)
-    
-    logging.info("\nGeneration (MW):")
-    logging.info(f"  Mean across all GSPs: {gen_mean:.2f}")
-    logging.info(f"  Max across all GSPs: {gen_max:.2f}")
-    
-    logging.info("\nCapacity (MWp):")
-    logging.info(f"  Mean across all GSPs: {cap_mean:.2f}")
-    logging.info(f"  Max across all GSPs: {cap_max:.2f}")
-    
-    logging.info("\nInstalled Capacity (MWp):")
-    logging.info(f"  Mean across all GSPs: {installed_mean:.2f}")
-    logging.info(f"  Max across all GSPs: {installed_max:.2f}")
-
-    max_gen_idx = np.nanargmax(ds.generation_mw.values)
-    max_gen_flat_indices = np.unravel_index(max_gen_idx, ds.generation_mw.shape)
-    max_gen_time_idx = max_gen_flat_indices[0]
-    max_gen_gsp_idx = max_gen_flat_indices[1]
-    
-    max_gen_time = ds.datetime_gmt.values[max_gen_time_idx]
-    max_gen_gsp = ds.gsp_id.values[max_gen_gsp_idx]
-    
-    logging.info(f"\nMaximum generation of {gen_max:.2f} MW occurred at:")
-    logging.info(f"  Time: {max_gen_time}")
-    logging.info(f"  GSP ID: {max_gen_gsp}")
-
-
-def gsp_analysis(ds):
-    """Analyse generation and capacity"""
-    print_separator()
-    logging.info("GSP ANALYSIS")
-    print_separator()
-    
+    logging.info("")
+    logging.info("--- GSP Analysis ---")
     gsp_gen_mean = np.nanmean(ds.generation_mw.values, axis=0)
-    gsp_gen_max = np.nanmax(ds.generation_mw.values, axis=0)
     gsp_cap_mean = np.nanmean(ds.capacity_mwp.values, axis=0)
-    gsp_cap_max = np.nanmax(ds.capacity_mwp.values, axis=0)
     gsp_installed_mean = np.nanmean(ds.installedcapacity_mwp.values, axis=0)
 
-    gsp_cf_mean = gsp_gen_mean / gsp_cap_mean * 100
+    gsp_cf_mean = np.divide(gsp_gen_mean, gsp_cap_mean, out=np.zeros_like(gsp_gen_mean), where=gsp_cap_mean!=0) * 100
     
     gsp_df = pd.DataFrame({
         'gsp_id': ds.gsp_id.values,
         'mean_generation_mw': gsp_gen_mean,
-        'max_generation_mw': gsp_gen_max,
         'mean_capacity_mwp': gsp_cap_mean,
-        'max_capacity_mwp': gsp_cap_max,
         'mean_installedcapacity_mwp': gsp_installed_mean,
         'mean_capacity_factor': gsp_cf_mean
     })
     
     gsp_df_sorted = gsp_df.sort_values('mean_generation_mw', ascending=False)
-    
     logging.info("Top 10 GSPs by mean generation (MW):")
     for idx, row in gsp_df_sorted.head(10).iterrows():
-        logging.info(f"  GSP {int(row['gsp_id'])}: {row['mean_generation_mw']:.2f} MW (Capacity Factor: {row['mean_capacity_factor']:.2f}%)")
+        logging.info(f"  GSP {int(row['gsp_id'])}: {row['mean_generation_mw']:.2f} MW (CF: {row['mean_capacity_factor']:.2f}%)")
     
-    gsp_df_sorted = gsp_df.sort_values('mean_capacity_factor', ascending=False)
+    total_gen_capacity = np.sum(gsp_gen_mean)
+    gsp_contribution = (gsp_gen_mean / total_gen_capacity) * 100
+    top_contributors = np.argsort(gsp_contribution)[::-1]
     
-    logging.info("\nTop 10 GSPs by mean capacity factor (%):")
-    for idx, row in gsp_df_sorted.head(10).iterrows():
-        logging.info(f"  GSP {int(row['gsp_id'])}: {row['mean_capacity_factor']:.2f}% (Mean Generation: {row['mean_generation_mw']:.2f} MW)")
+    logging.info("")
+    logging.info("GSP Contribution:")
+    logging.info(f"  Top 10 GSPs contribute: {np.sum(gsp_contribution[top_contributors[:10]]):.2f}%")
+    logging.info(f"  Top 50 GSPs contribute: {np.sum(gsp_contribution[top_contributors[:50]]):.2f}%")
+    logging.info(f"  Top 100 GSPs contribute: {np.sum(gsp_contribution[top_contributors[:100]]):.2f}%")
     
-    logging.info("\nDistribution of mean generation capacity:")
-    gen_bins = [0, 5, 10, 20, 50, 100, 500, float('inf')]
-    gen_counts = pd.cut(gsp_df['mean_generation_mw'], bins=gen_bins).value_counts().sort_index()
-    
-    for interval, count in gen_counts.items():
-        logging.info(f"  {interval}: {count} GSPs")
-
+    # Count active GSPs
+    gsp_gen_max = np.nanmax(ds.generation_mw.values, axis=0)
     active_gsps = np.sum(gsp_gen_max > 0)
-    logging.info(f"\nNumber of active GSPs (max generation > 0): {active_gsps} / {len(ds.gsp_id)}")
-
-    zero_gen_gsps = np.where(gsp_gen_max == 0)[0]
-    if len(zero_gen_gsps) > 0:
-        logging.info(f"\nGSPs with zero generation: {len(zero_gen_gsps)}")
-        logging.info(f"  GSP IDs: {', '.join(map(str, ds.gsp_id.values[zero_gen_gsps][:10]))}{'...' if len(zero_gen_gsps) > 10 else ''}")
-
-
-def temporal_analysis(ds):
-    """Analyse temporal patterns."""
-    print_separator()
-    logging.info("TEMPORAL ANALYSIS")
-    print_separator()
+    logging.info("")
+    logging.info(f"Active GSPs (max generation > 0): {active_gsps} / {len(ds.gsp_id)}")
     
+    logging.info("")
+    logging.info("--- Temporal Analysis ---")
     datetimes = pd.to_datetime(ds.datetime_gmt.values)
-    
     hours = np.array([dt.hour for dt in datetimes])
     months = np.array([dt.month for dt in datetimes])
     years = np.array([dt.year for dt in datetimes])
@@ -220,10 +205,8 @@ def temporal_analysis(ds):
             hourly_gen[hour] = np.mean(total_gen_by_time[hour_indices])
             hourly_counts[hour] = len(hour_indices)
     
-    logging.info("Average Total Generation by Hour of Day (MW):")
-    for hour in range(24):
-        if hourly_counts[hour] > 0:
-            logging.info(f"  {hour:02d}:00-{hour+1:02d}:00: {hourly_gen[hour]:.2f} MW")
+    peak_hour = np.argmax(hourly_gen)
+    logging.info(f"Peak Generation Hour (UTC): {peak_hour:02d}:00")
     
     monthly_gen = np.zeros(12)
     monthly_counts = np.zeros(12)
@@ -237,11 +220,11 @@ def temporal_analysis(ds):
     month_names = ['January', 'February', 'March', 'April', 'May', 'June',
                    'July', 'August', 'September', 'October', 'November', 'December']
     
-    logging.info("\nAverage Total Generation by Month (MW):")
-    for month in range(12):
-        if monthly_counts[month] > 0:
-            logging.info(f"  {month_names[month]}: {monthly_gen[month]:.2f} MW")
-
+    best_month = np.argmax(monthly_gen) + 1
+    worst_month = np.argmin(monthly_gen) + 1
+    logging.info(f"Best Month (Avg Generation): {month_names[best_month-1]} ({monthly_gen[best_month-1]:.2f} MW)")
+    logging.info(f"Worst Month (Avg Generation): {month_names[worst_month-1]} ({monthly_gen[worst_month-1]:.2f} MW)")
+    
     all_years = sorted(np.unique(years))
     yearly_gen = np.zeros(len(all_years))
     yearly_counts = np.zeros(len(all_years))
@@ -252,187 +235,40 @@ def temporal_analysis(ds):
             yearly_gen[i] = np.mean(total_gen_by_time[year_indices])
             yearly_counts[i] = len(year_indices)
     
-    logging.info("\nAverage Total Generation by Year (MW):")
-    for i, year in enumerate(all_years):
-        if yearly_counts[i] > 0:
-            logging.info(f"  {year}: {yearly_gen[i]:.2f} MW (from {int(yearly_counts[i])} timesteps)")
+    logging.info("")
+    logging.info("--- Yearly Analysis ---")
+    logging.info("Average Total Generation by Year (MW):")
+    yearly_summary = pd.DataFrame({
+        'Year': all_years,
+        'Avg_Gen_MW': yearly_gen,
+        'Total_Timesteps': yearly_counts
+    })
+    
+    if len(all_years) > 1:
+        yearly_summary['Gen_Change_MW'] = yearly_summary['Avg_Gen_MW'].diff()
+        yearly_summary['Gen_Pct_Change'] = yearly_summary['Avg_Gen_MW'].pct_change() * 100
+        logging.info(yearly_summary)
+    else:
+        logging.info(yearly_summary[['Year', 'Avg_Gen_MW', 'Total_Timesteps']])
+        logging.info("Year-on-Year Growth: Cannot be calculated (single year data).")
 
 
-def spatial_analysis(ds):
-    """Analyse spatial patterns (GSP distribution)."""
-    print_separator()
-    logging.info("SPATIAL ANALYSIS (GSP DISTRIBUTION)")
-    print_separator()
-
-    gsp_gen_mean = np.nanmean(ds.generation_mw.values, axis=0)
-
-    total_gen_capacity = np.sum(gsp_gen_mean)
-    logging.info(f"Total mean generation capacity across all GSPs: {total_gen_capacity:.2f} MW")
-
-    gsp_contribution = (gsp_gen_mean / total_gen_capacity) * 100
-
-    top_contributors = np.argsort(gsp_contribution)[::-1]
-    cumulative_contribution = np.cumsum(gsp_contribution[top_contributors])
-
-    logging.info("\nContribution to total generation:")
-    logging.info(f"  Top 10 GSPs contribute: {np.sum(gsp_contribution[top_contributors[:10]]):.2f}%")
-    logging.info(f"  Top 50 GSPs contribute: {np.sum(gsp_contribution[top_contributors[:50]]):.2f}%")
-    logging.info(f"  Top 100 GSPs contribute: {np.sum(gsp_contribution[top_contributors[:100]]):.2f}%")
-
-    gsps_for_50pct = np.where(cumulative_contribution >= 50)[0][0] + 1
-    gsps_for_80pct = np.where(cumulative_contribution >= 80)[0][0] + 1
-
-    logging.info(f"\nGSP concentration:")
-    logging.info(f"  Number of GSPs needed for 50% of total generation: {gsps_for_50pct}")
-    logging.info(f"  Number of GSPs needed for 80% of total generation: {gsps_for_80pct}")
-
-    logging.info("\nDistribution of GSPs by mean generation:")
-    gen_thresholds = [0, 1, 5, 10, 20, 50, 100]
-
-    for i in range(len(gen_thresholds)):
-        if i < len(gen_thresholds) - 1:
-            count = np.sum((gsp_gen_mean >= gen_thresholds[i]) & (gsp_gen_mean < gen_thresholds[i+1]))
-            logging.info(f"  {gen_thresholds[i]}-{gen_thresholds[i+1]} MW: {count} GSPs")
-        else:
-            count = np.sum(gsp_gen_mean >= gen_thresholds[i])
-            logging.info(f"  >{gen_thresholds[i]} MW: {count} GSPs")
-
-
-def correlation_analysis(ds):
-    """Analyse correlations between GSPs."""
-    print_separator()
-    logging.info("CORRELATION ANALYSIS")
-    print_separator()
-
-    timestamps = pd.to_datetime(ds.datetime_gmt.values)
-    random_date = timestamps[len(timestamps)//2].date()
-
-    day_indices = [i for i, ts in enumerate(timestamps) if ts.date() == random_date]
-
-    if len(day_indices) == 0:
-        logging.info(f"No data found for date {random_date}")
-        return
-
-    logging.info(f"Analyzing correlations using data from {random_date} ({len(day_indices)} timesteps)")
-
-    day_data = ds.generation_mw.values[day_indices, :]
-    active_gsp_indices = np.where(np.nansum(day_data, axis=0) > 0)[0]
-    active_gsp_ids = ds.gsp_id.values[active_gsp_indices]
-
-    if len(active_gsp_ids) < 5:
-        logging.info(f"Too few active GSPs ({len(active_gsp_ids)}) found for correlation analysis")
-        return
-
-    logging.info(f"Found {len(active_gsp_ids)} active GSPs for correlation analysis")
-
-    day_data_active = day_data[:, active_gsp_indices]
-    day_data_active = np.nan_to_num(day_data_active, nan=0)
-    correlations = np.corrcoef(day_data_active.T)
-
-    correlation_values = correlations[np.triu_indices(len(correlations), k=1)]
-
-    logging.info("\nCorrelation statistics:")
-    logging.info(f"  Mean correlation: {np.mean(correlation_values):.4f}")
-    logging.info(f"  Median correlation: {np.median(correlation_values):.4f}")
-    logging.info(f"  Min correlation: {np.min(correlation_values):.4f}")
-    logging.info(f"  Max correlation: {np.max(correlation_values):.4f}")
-
-    strong_positive = np.sum(correlation_values > 0.8) / len(correlation_values) * 100
-    moderate_positive = np.sum((correlation_values > 0.5) & (correlation_values <= 0.8)) / len(correlation_values) * 100
-    weak_positive = np.sum((correlation_values > 0.2) & (correlation_values <= 0.5)) / len(correlation_values) * 100
-
-    logging.info("\nCorrelation distribution:")
-    logging.info(f"  Strong positive (>0.8): {strong_positive:.2f}%")
-    logging.info(f"  Moderate positive (0.5-0.8): {moderate_positive:.2f}%")
-    logging.info(f"  Weak positive (0.2-0.5): {weak_positive:.2f}%")
-
-    logging.info(f"\nInterpretation: {strong_positive:.1f}% of GSP pairs show strong correlation,")
-    logging.info(f"suggesting that solar generation is {'highly' if strong_positive > 50 else 'moderately' if strong_positive > 25 else 'somewhat'} synchronized across the UK.")
-
-
-def capacity_factor_analysis(ds):
-    """Analyse capacity factors across GSPs"""
-    print_separator()
-    logging.info("CAPACITY FACTOR ANALYSIS")
-    print_separator()
-
-    capacity = ds.capacity_mwp.values
-    generation = ds.generation_mw.values
-    valid_mask = (capacity > 0) & (~np.isnan(capacity)) & (~np.isnan(generation))
-    capacity_factor = np.full_like(generation, np.nan)
-    capacity_factor[valid_mask] = (generation[valid_mask] / capacity[valid_mask]) * 100
-
-    mean_cf_by_gsp = np.nanmean(capacity_factor, axis=0)
-    mean_cf_by_time = np.nanmean(capacity_factor, axis=1)
-
-    timestamps = pd.to_datetime(ds.datetime_gmt.values)
-    cf_time_series = pd.Series(mean_cf_by_time, index=timestamps)
-
-    logging.info(f"Capacity Factor Statistics (%):")
-    logging.info(f"  Mean across all GSPs and times: {np.nanmean(capacity_factor):.2f}%")
-    logging.info(f"  Median across all GSPs and times: {np.nanmedian(capacity_factor):.2f}%")
-    logging.info(f"  Max across all GSPs and times: {np.nanmax(capacity_factor):.2f}%")
-
-    monthly_cf = cf_time_series.groupby(cf_time_series.index.month).mean()
-
-    month_names = ['January', 'February', 'March', 'April', 'May', 'June',
-                   'July', 'August', 'September', 'October', 'November', 'December']
-
-    logging.info("\nMean Capacity Factor by Month (%):")
-    for month in range(1, 13):
-        if month in monthly_cf.index:
-            logging.info(f"  {month_names[month-1]}: {monthly_cf[month]:.2f}%")
-
-    hourly_cf = cf_time_series.groupby(cf_time_series.index.hour).mean()
-
-    logging.info("\nMean Capacity Factor by Hour (%):")
-    for hour in range(24):
-        if hour in hourly_cf.index:
-            logging.info(f"  {hour:02d}:00-{hour+1:02d}:00: {hourly_cf[hour]:.2f}%")
-
-
-    top_cf_indices = np.argsort(mean_cf_by_gsp)[::-1]
-    bottom_cf_indices = np.argsort(mean_cf_by_gsp)
-
-    top_cf_indices = top_cf_indices[~np.isnan(mean_cf_by_gsp[top_cf_indices])]
-    bottom_cf_indices = bottom_cf_indices[~np.isnan(mean_cf_by_gsp[bottom_cf_indices])]
-
-    logging.info("\nGSPs with Highest Mean Capacity Factor:")
-    for i in range(min(10, len(top_cf_indices))):
-        gsp_idx = top_cf_indices[i]
-        gsp_id = ds.gsp_id.values[gsp_idx]
-        logging.info(f"  GSP {int(gsp_id)}: {mean_cf_by_gsp[gsp_idx]:.2f}%")
-
-    logging.info("\nGSPs with Lowest Mean Capacity Factor (excluding zero/NaN):")
-    for i in range(min(10, len(bottom_cf_indices))):
-        gsp_idx = bottom_cf_indices[i]
-        if mean_cf_by_gsp[gsp_idx] <= 0 or np.isnan(mean_cf_by_gsp[gsp_idx]):
-            continue
-        gsp_id = ds.gsp_id.values[gsp_idx]
-        logging.info(f"  GSP {int(gsp_id)}: {mean_cf_by_gsp[gsp_idx]:.2f}%")
-
-
-def main():
-    parser = argparse.ArgumentParser(description='Analyse PV GSP data from .zarr dataset')
-    parser.add_argument('zarr_path', help='Path to the zarr dataset ( GCS)')
-
+def main() -> None:
+    """Main function to parse arguments and run the analysis."""
+    parser = argparse.ArgumentParser(description='Analyses PV GSP data from .zarr dataset')
+    parser.add_argument('zarr_path', help='Path to the zarr dataset (local or GCS)')
     args = parser.parse_args()
-
+    
     ds = load_data(args.zarr_path)
-
-    basic_stats(ds)
-    gsp_analysis(ds)
-    temporal_analysis(ds)
-    spatial_analysis(ds)
-    correlation_analysis(ds)
-    capacity_factor_analysis(ds)
-
-    logging.info("\nAnalysis complete.")
-
+    if ds is not None:
+        analyse_data(ds)
+    
+    # Clean up temporary files if using GCS
     if args.zarr_path.startswith("gs://"):
         local_zarr_path = os.path.join(tempfile.gettempdir(), "temp.zarr")
         if os.path.exists(local_zarr_path):
             shutil.rmtree(local_zarr_path)
+
 
 if __name__ == "__main__":
     main()

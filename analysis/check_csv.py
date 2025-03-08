@@ -70,20 +70,20 @@ def analyse_data(df: pd.DataFrame) -> None:
         logging.error("DataFrame is empty. Exiting.")
         return
 
-    print("=== PV Data Analysis ===")
-    print(f"Data from {df['start_datetime_utc'].min()} to {df['end_datetime_utc'].max()}")
-    print(f"Total Data Points: {len(df):,}")
+    logging.info("=== PV Data Analysis ===")
+    logging.info(f"Data from {df['start_datetime_utc'].min()} to {df['end_datetime_utc'].max()}")
+    logging.info(f"Total Data Points: {len(df):,}")
 
-    print("\n--- Basic Stats ---")
-    print(df[['generation_mw', 'capacity_utilisation']].describe().T)
+    logging.info("\n--- Basic Stats ---")
+    logging.info(df[['generation_mw', 'capacity_utilisation']].describe().T)
     year_diff = df['year'].max() - df['year'].min()
     if year_diff > 0:
       growth = (df['installedcapacity_mwp'].iloc[-1] / df['installedcapacity_mwp'].iloc[0]) ** (1 / year_diff) - 1
-      print(f"Installed Capacity Growth (Annual): {growth:.2%}")
+      logging.info(f"Installed Capacity Growth (Annual): {growth:.2%}")
     else:
-      print("Installed Capacity Growth (Annual): Cannot be calculated (single year data).")
+      logging.info("Installed Capacity Growth (Annual): Cannot be calculated (single year data).")
 
-    print("\n--- Yearly Analysis ---")
+    logging.info("\n--- Yearly Analysis ---")
     yearly = df.groupby('year').agg({
         'generation_mw': ['sum', 'mean'],
         'capacity_utilisation': 'mean',
@@ -91,32 +91,32 @@ def analyse_data(df: pd.DataFrame) -> None:
     })
     yearly.columns = ['Gen_Sum_MW', 'Gen_Mean_MW', 'Avg_Cap_Utilisation', 'Max_Installed_Cap']
     yearly['Gen_Sum_GWh'] = yearly['Gen_Sum_MW'] * 0.5 / 1000
-    print(yearly[['Gen_Sum_GWh', 'Avg_Cap_Utilisation', 'Max_Installed_Cap']])
+    logging.info(yearly[['Gen_Sum_GWh', 'Avg_Cap_Utilisation', 'Max_Installed_Cap']])
 
-    print("\n--- Year on Year ---")
+    logging.info("\n--- Year on Year ---")
     yoy = pd.DataFrame()
     yoy["gen_change_gwh"] = yearly['Gen_Sum_GWh'].diff()
     yoy["gen_pct_change"] = yearly['Gen_Sum_GWh'].pct_change() * 100
     yoy["cap_change_mwp"] = yearly['Max_Installed_Cap'].diff()
     yoy["cap_pct_change"] = yearly['Max_Installed_Cap'].pct_change() * 100
-    print(yoy)
+    logging.info(yoy)
 
-    print("\n--- Monthly Analysis ---")
+    logging.info("\n--- Monthly Analysis ---")
     monthly = df.groupby('month').agg({'generation_mw': 'mean', 'capacity_utilisation': 'mean'})
     best_month = monthly['capacity_utilisation'].idxmax()
     worst_month = monthly['capacity_utilisation'].idxmin()
-    print(f"Best Month (Avg Capacity Utilisation): {best_month} ({monthly['capacity_utilisation'].max():.2f}%)")
-    print(f"Worst Month (Avg Capacity Utilisation): {worst_month} ({monthly['capacity_utilisation'].min():.2f}%)")
+    logging.info(f"Best Month (Avg Capacity Utilisation): {best_month} ({monthly['capacity_utilisation'].max():.2f}%)")
+    logging.info(f"Worst Month (Avg Capacity Utilisation): {worst_month} ({monthly['capacity_utilisation'].min():.2f}%)")
 
-    print("\n--- Daily Patterns ---")
+    logging.info("\n--- Daily Patterns ---")
     daily_profile = df.groupby('hour')['generation_mw'].mean()
     peak_hour = daily_profile.idxmax()
-    print(f"Peak Generation Hour (UTC): {peak_hour:02d}:00")
+    logging.info(f"Peak Generation Hour (UTC): {peak_hour:02d}:00")
     daylight_df = df[df['generation_mw'] > 0]
     if not daylight_df.empty:
-      print(f"Avg Daylight Hours: {len(daylight_df) * 0.5 / (df['date'].nunique()):.2f}")
+      logging.info(f"Avg Daylight Hours: {len(daylight_df) * 0.5 / (df['date'].nunique()):.2f}")
     else:
-      print("Avg Daylight Hours: No daylight hours detected.")
+      logging.info("Avg Daylight Hours: No daylight hours detected.")
 
 
 def main() -> None:
